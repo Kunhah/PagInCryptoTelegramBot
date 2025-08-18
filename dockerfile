@@ -19,7 +19,7 @@ ARG DATABASE_URL
 ENV DATABASE_URL=${DATABASE_URL}
 
 # Run SQLx prepare (requires DATABASE_URL)
-RUN cargo install sqlx-cli && cargo sqlx prepare -- --bin PagInCryptoBot
+RUN cargo install sqlx-cli && cargo sqlx prepare -- --bin PagInCryptoBot -v
 
 # Build the application
 RUN cargo build --release -v
@@ -43,4 +43,4 @@ ENV DATABASE_URL=${DATABASE_URL}
 ENV STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
 
 # Set command to run the application
-CMD ["./PagInCryptoBot"]
+CMD ["./PagInCryptoBot"] -v
