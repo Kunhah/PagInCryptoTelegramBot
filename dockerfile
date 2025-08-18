@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM rust:1.81 as builder
+FROM rust:1.88 as builder
 
 # Set working directory to /app
 WORKDIR /app
@@ -14,7 +14,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
 # Build the application
-RUN cargo build --release
+RUN cargo build --release -v
 
 # Stage 2: Runtime
 FROM debian:bullseye-slim
