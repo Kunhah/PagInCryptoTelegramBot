@@ -15,6 +15,18 @@ use std::collections::HashMap;
 use teloxide::prelude::*;
 use teloxide::dispatching::Dispatcher;
 use teloxide::utils::command::BotCommands;
+use sqlx::Type;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Type)]
+#[sqlx(type_name = "subscription_status", rename_all = "lowercase")]
+pub enum SubscriptionStatus {
+    Subscribed,
+    Active,
+    Canceled,
+    Expired,
+    None,
+}
 
 #[tokio::main]
 async fn main() {
@@ -81,41 +93,41 @@ async fn main() {
 #[command(rename_rule = "lowercase", description = "These are the available commands:")]
 pub enum Command {
     #[command(description = "Inscrição com assinatura cobrada automnáticamente a cada 30 dias.")]
-    Subscribe,
+    Inscrever,
     #[command(description = "Faça sua inscrição de forma manual.")]
-    Buy,
-    #[command(description = "Renove sua inscrição de forma manual.")]
-    Renew,
+    Comprar,
+    #[command(description = "Renove sua inscrição de forma manual. Se você está usando a assinatura cobrada automaticamente não utilize essa opção")]
+    Renovar,
     #[command(description = "Display this text.")]
     Help,
 }
 
 pub async fn answer(bot: Bot, msg: Message, command: Command) -> ResponseResult<()> {
     match command {
-        Command::Buy => {
+        Command::Comprar => {
             let telegram_user_id = msg.from.map(|u| u.id.0 as i64).unwrap_or(0);
 
             match create_stripe_checkout_session(telegram_user_id, false).await {
                 Ok(url) => {
-                    bot.send_message(msg.chat.id, format!("💳 Please make your subscription here:\n{}", url))
+                    bot.send_message(msg.chat.id, format!("💳 Por favor compre o accesso aqui:\n{}", url))
                         .await?;
                 }
                 Err(e) => {
-                    bot.send_message(msg.chat.id, format!("❌ Failed to create checkout: {}", e))
+                    bot.send_message(msg.chat.id, format!("❌ Erro ao criar checkout:\n{}", e))
                         .await?;
                 }
             }
         }
-        Command::Renew => {
+        Command::Renovar => {
             let telegram_user_id = msg.from.map(|u| u.id.0 as i64).unwrap_or(0);
 
             match create_stripe_checkout_session(telegram_user_id, false).await {
                 Ok(url) => {
-                    bot.send_message(msg.chat.id, format!("💳 Please renew your subscription here:\n{}", url))
+                    bot.send_message(msg.chat.id, format!("💳 Por favor renove sua inscrição aqui\n{}", url))
                         .await?;
                 }
                 Err(e) => {
-                    bot.send_message(msg.chat.id, format!("❌ Failed to create checkout: {}", e))
+                    bot.send_message(msg.chat.id, format!("❌ Erro ao criar checkout:\n{}", e))
                         .await?;
                 }
             }
@@ -124,15 +136,15 @@ pub async fn answer(bot: Bot, msg: Message, command: Command) -> ResponseResult<
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
                 .await?;
         }
-        Command::Subscribe => {
+        Command::Inscrever => {
             let telegram_user_id = msg.from.map(|u| u.id.0 as i64).unwrap_or(0);
             match create_stripe_checkout_session(telegram_user_id, true).await {
                 Ok(url) => {
-                    bot.send_message(msg.chat.id, format!("💳 Please subscribe here:\n{}", url))
+                    bot.send_message(msg.chat.id, format!("💳 Por favor faça sua inscrição aqui:\n{}", url))
                         .await?;
                 }
                 Err(e) => {
-                    bot.send_message(msg.chat.id, format!("❌ Failed to create checkout: {}", e))
+                    bot.send_message(msg.chat.id, format!("❌ Erro ao criar checkout:\n{}", e))
                         .await?;
                 }
             }
@@ -191,10 +203,10 @@ async fn warn_users_expiring_soon(bot: &Bot, pool: &PgPool) -> Result<(), sqlx::
         let id = record.telegram_user_id;
         let days = chrono::Utc::now().naive_utc().date().signed_duration_since(record.current_period_end.date()).num_days().abs();
         let message = match days {
-            0 => "🚨 Your subscription expired! Please renew to keep access.".to_string(),
-            1 => "⚠️ Your subscription is about to expire tomorrow!".to_string(),
-            2..3 => format!("⚠️ Your subscription will expire in {} days! Please renew to keep access.", days),
-            _ => format!("Your subscription will expire in {} days. Please renew to keep access.", days),
+            0 => "🚨 Sua inscrição expirou, por favor renove para acessar".to_string(),
+            1 => "⚠️ Sua inscrição expira amanhã!".to_string(),
+            2..3 => format!("⚠️ Sua inscrição irá expirar em {} dias! Por favor renove para manter o acesso.", days),
+            _ => format!("Sua inscrição irá expirar em {} dias. Por favor renove para manter o acesso.", days),
         };
         if let Err(err) = bot
             .send_message(UserId(id as u64), message)
@@ -322,52 +334,110 @@ async fn handle_checkout_session_completed(event: Event, pool: Arc<PgPool>) {
     if let EventObject::CheckoutSession(session) = event.data.object {
         if let Some(metadata) = session.metadata {
             if let Some(user_id_str) = metadata.get("telegram_user_id") {
-                if let Some(subscribed) = metadata.get("subscribed") {                
+                if let Some(subscribed) = metadata.get("subscribed") {
                     if let Ok(user_id) = user_id_str.parse::<i64>() {
                         if let Some(sub_id) = &session.subscription {
-                            // Insert or update subscription row
-                            if subscribed.parse::<bool>().unwrap_or_default() {
-                                if let Err(err) = sqlx::query!(
-                                    r#"
-                                    INSERT INTO subscriptions (telegram_user_id, id, status, updated_at)
-                                    VALUES ($1, $2, 'active', NOW())
-                                    ON CONFLICT (telegram_user_id)
-                                    DO UPDATE SET id = $2, status = 'active', updated_at = NOW();
-                                    "#,
-                                    user_id,
-                                    sub_id.id().to_string().parse::<i32>().unwrap_or_default()
-                                )
-                                .execute(pool.as_ref())
-                                .await
-                                {
-                                    eprintln!("❌ DB update error for user {}: {}", user_id, err);
+                            // Check if already subscribed
+                            let existing = sqlx::query!(
+                                r#"
+                                SELECT status as "status: SubscriptionStatus", current_period_end
+                                FROM subscriptions
+                                WHERE telegram_user_id = $1
+                                "#,
+                                user_id
+                            )
+                            .fetch_optional(pool.as_ref())
+                            .await
+                            .unwrap();
+
+                            let mut status: SubscriptionStatus = SubscriptionStatus::Active;
+
+                            let new_period_end = if let Some(record) = existing {
+                                if record.status == SubscriptionStatus::Active {
+                                    eprintln!("❌ User {} is already subscribed, skipping update.", user_id);
+                                    return;
+                                }
+                                status = record.status;
+
+                                if record.current_period_end > chrono::Utc::now().naive_utc() {
+                                        record.current_period_end + chrono::Duration::days(30)
                                 } else {
-                                    println!("✅ Linked Stripe subscription {} to Telegram user {}", sub_id.id(), user_id);
+                                    chrono::Utc::now().naive_utc() + chrono::Duration::days(30)
                                 }
                             }
                             else {
+                                chrono::Utc::now().naive_utc() + chrono::Duration::days(30)
+                            };
+                            
+
+                            // Calculate new period_end
+                            //let new_period_end = if let Some(record) = existing {
+                                //if let Some(end) = record.current_period_end {
+                                    // Extend from the greater of (existing, now)
+                                    // if record.current_period_end > chrono::Utc::now().naive_utc() {
+                                    //     record.current_period_end + chrono::Duration::days(30)
+                                    // } else {
+                                    //     chrono::Utc::now().naive_utc() + chrono::Duration::days(30)
+                                    // }
+                                // } else {
+                                //     chrono::Utc::now() + chrono::Duration::days(30)
+                                // }
+                            //} else {
+                                //chrono::Utc::now().naive_utc() + chrono::Duration::days(30)
+                            //};
+                            // subscribed.parse::<bool>().unwrap_or_default()
+
+                            if status == SubscriptionStatus::Active {
                                 if let Err(err) = sqlx::query!(
                                     r#"
-                                    INSERT INTO subscriptions (telegram_user_id, id, status, updated_at)
-                                    VALUES ($1, $2, 'subscribed', NOW())
+                                    INSERT INTO subscriptions (telegram_user_id, id, status, current_period_end, updated_at)
+                                    VALUES ($1, $2, 'active', $3, NOW())
                                     ON CONFLICT (telegram_user_id)
-                                    DO UPDATE SET id = $2, status = 'active', updated_at = NOW();
+                                    DO UPDATE
+                                    SET id = $2,
+                                        status = 'active',
+                                        current_period_end = $3,
+                                        updated_at = NOW();
                                     "#,
                                     user_id,
-                                    sub_id.id().to_string().parse::<i32>().unwrap_or_default()
+                                    sub_id.id().to_string().parse::<i32>().unwrap_or_default(),   // store as text, not i32
+                                    new_period_end
                                 )
                                 .execute(pool.as_ref())
                                 .await
                                 {
                                     eprintln!("❌ DB update error for user {}: {}", user_id, err);
                                 } else {
-                                    println!("✅ Linked Stripe subscription {} to Telegram user {}", sub_id.id(), user_id);
+                                    println!("✅ Linked Stripe subscription {} to Telegram user {}, new period end = {}", sub_id.id(), user_id, new_period_end);
                                 }
                             }
+                            else if status == SubscriptionStatus::Subscribed {
+                                if let Err(err) = sqlx::query!(
+                                    r#"
+                                    INSERT INTO subscriptions (telegram_user_id, id, status, current_period_end, updated_at)
+                                    VALUES ($1, $2, 'active', $3, NOW())
+                                    ON CONFLICT (telegram_user_id)
+                                    DO UPDATE
+                                    SET id = $2,
+                                        status = 'subscribed',
+                                        current_period_end = $3,
+                                        updated_at = NOW();
+                                    "#,
+                                    user_id,
+                                    sub_id.id().to_string().parse::<i32>().unwrap_or_default(),   // store as text, not i32
+                                    new_period_end
+                                )
+                                .execute(pool.as_ref())
+                                .await
+                                {
+                                    eprintln!("❌ DB update error for user {}: {}", user_id, err);
+                                } else {
+                                    println!("✅ Linked Stripe subscription {} to Telegram user {}, new period end = {}", sub_id.id(), user_id, new_period_end);
+                                }
+                            }                       
                         }
                     }
                 }
-                
             }
         }
     }
@@ -376,10 +446,10 @@ async fn handle_checkout_session_completed(event: Event, pool: Arc<PgPool>) {
 async fn handle_stripe_invoice_paid(event: Event, pool: Arc<PgPool>) {
     let data = event.data.object;
 
-    if let Ok(invoice) = serde_json::from_value::<stripe::Invoice>(serde_json::to_value(data.clone()).unwrap()) {
+    if let Ok(invoice) = serde_json::from_value::<stripe::Invoice>(serde_json::to_value(data.clone()).unwrap_or_default()) {
         // Retrieve subscription info from Stripe if present
         if let Some(sub_id) = invoice.subscription.as_ref() {
-            let client = stripe::Client::new(&std::env::var("STRIPE_SECRET_KEY").unwrap());
+            let client = stripe::Client::new(&std::env::var("STRIPE_SECRET_KEY").unwrap_or_default());
 
             let sub = match stripe::Subscription::retrieve(&client, &sub_id.id(), &[]).await {
                 Ok(sub) => sub,
@@ -392,8 +462,8 @@ async fn handle_stripe_invoice_paid(event: Event, pool: Arc<PgPool>) {
             // Telegram user ID is stored in subscription metadata
             if let Some(user_id_str) = sub.metadata.get("telegram_user_id") {
                 if let Ok(user_id) = user_id_str.parse::<i64>() {
-                    if let Some(period_end) = invoice.period_end {
-                        if let Some(period_end_dt) = chrono::DateTime::from_timestamp(period_end as i64, 0) {
+                    // if let Some(period_end) = invoice.period_end {
+                        if let Some(period_end_dt) = chrono::DateTime::from_timestamp(sub.current_period_end as i64, 0) {
                             let _ = sqlx::query!(
                                 "UPDATE subscriptions
                                 SET current_period_end = $2,
@@ -407,7 +477,7 @@ async fn handle_stripe_invoice_paid(event: Event, pool: Arc<PgPool>) {
     
                             println!("✅ Activated subscription for Telegram user {user_id}");
                         }
-                    }
+                    //}
                 }
             }
         }
@@ -418,7 +488,7 @@ async fn handle_subscription_deleted(event: Event, pool: Arc<PgPool>) {
     let data = event.data.object;
 
     if let Ok(subscription) = serde_json::from_value::<stripe::Subscription>(
-        serde_json::to_value(data.clone()).unwrap()
+        serde_json::to_value(data.clone()).unwrap_or_default()
     ) {
         if let Some(user_id) = subscription.metadata.get("telegram_user_id") {
             if let Some(subscribed) = subscription.metadata.get("subscribed") {
@@ -433,30 +503,50 @@ async fn handle_subscription_deleted(event: Event, pool: Arc<PgPool>) {
                         .and_then(|d| d.reason.clone())
                         .unwrap_or_else(|| stripe::CancellationDetailsReason::PaymentFailed);
         
-                    if reason == stripe::CancellationDetailsReason::CancellationRequested {
-                        let _ = sqlx::query!(
-                            r#"
-                            UPDATE subscriptions
-                            SET status = 'canceled'
-                            WHERE telegram_user_id = $1
-                            "#,
-                            telegram_user_id,
-                        )
-                        .execute(&*pool)
-                        .await;
-                    }
-                    else {
-                        let _ = sqlx::query!(
-                            r#"
-                            UPDATE subscriptions
-                            SET status = 'expired'
-                            WHERE telegram_user_id = $1
-                            "#,
-                            telegram_user_id,
-                        )
-                        .execute(&*pool)
-                        .await;
-                    }
+                    // let status: SubscriptionStatus = match reason {
+                    //     stripe::CancellationDetailsReason::PaymentFailed => SubscriptionStatus::Expired,
+                    //     stripe::CancellationDetailsReason::CancellationRequested => SubscriptionStatus::Canceled,
+                    //     _ => SubscriptionStatus::None,
+                    // };
+                    match reason {
+                        stripe::CancellationDetailsReason::PaymentFailed => {
+                            let _ = sqlx::query!(
+                                r#"
+                                UPDATE subscriptions
+                                SET status = 'expired'
+                                WHERE telegram_user_id = $1
+                                "#,
+                                telegram_user_id,
+                            )
+                            .execute(&*pool)
+                            .await;
+                            },
+                        stripe::CancellationDetailsReason::CancellationRequested => {
+                            let _ = sqlx::query!(
+                                r#"
+                                UPDATE subscriptions
+                                SET status = 'canceled'
+                                WHERE telegram_user_id = $1
+                                "#,
+                                telegram_user_id,
+                            )
+                            .execute(&*pool)
+                            .await;
+                        },
+                        _ => {
+                            let _ = sqlx::query!(
+                                r#"
+                                UPDATE subscriptions
+                                SET status = 'expired'
+                                WHERE telegram_user_id = $1
+                                "#,
+                                telegram_user_id,
+                            )
+                            .execute(&*pool)
+                            .await;
+                        }
+                    };
+                    
         
                     match reason.as_str() {
                         "payment_failed" => {
