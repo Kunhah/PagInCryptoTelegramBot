@@ -11,6 +11,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "hyper 1.6.0",
+ "log",
  "serde",
  "serde_json",
  "sqlx",
