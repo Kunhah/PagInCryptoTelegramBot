@@ -13,6 +13,14 @@ COPY Cargo.toml Cargo.lock ./
 # Copy src directory to /app/src
 COPY src ./src
 
+# Add .env (with DATABASE_URL for sqlx prepare) if available
+# or set an ARG here for build-time DATABASE_URL
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
+
+# Run SQLx prepare (requires DATABASE_URL)
+RUN cargo install sqlx-cli && cargo sqlx prepare -- --bin PagInCryptoBot
+
 # Build the application
 RUN cargo build --release -v
 
@@ -22,18 +30,17 @@ FROM debian:bullseye-slim
 # Set working directory to /app
 WORKDIR /app
 
-# Copy the built application from the builder stage
+# Copy built binary and .sqlx metadata
 COPY --from=builder /app/target/release/PagInCryptoBot /app/
+COPY --from=builder /app/.sqlx /app/.sqlx
 
-# Expose port 8080
 EXPOSE 8080
 
-# ENVIRONMENT VARIABLES
+# Environment variables (runtime only)
 ENV TELOXIDE_TOKEN=${TELOXIDE_TOKEN}
 ENV GROUP_ID=${GROUP_ID}
 ENV DATABASE_URL=${DATABASE_URL}
 ENV STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-
 
 # Set command to run the application
 CMD ["./PagInCryptoBot"]
