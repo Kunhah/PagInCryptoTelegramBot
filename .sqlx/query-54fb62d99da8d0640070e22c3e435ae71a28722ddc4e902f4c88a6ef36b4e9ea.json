@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT telegram_user_id, current_period_end\n        FROM subscriptions\n        WHERE current_period_end::date = (now() + interval '7 days')::date\n          AND status = 'active'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "telegram_user_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "current_period_end",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "54fb62d99da8d0640070e22c3e435ae71a28722ddc4e902f4c88a6ef36b4e9ea"
+}

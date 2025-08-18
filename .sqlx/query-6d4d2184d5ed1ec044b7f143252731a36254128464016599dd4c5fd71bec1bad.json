@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE subscriptions\n                                SET current_period_end = $2,\n                                    updated_at = NOW()\n                                WHERE telegram_user_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6d4d2184d5ed1ec044b7f143252731a36254128464016599dd4c5fd71bec1bad"
+}
