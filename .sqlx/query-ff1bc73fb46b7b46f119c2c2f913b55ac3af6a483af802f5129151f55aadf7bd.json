@@ -1,10 +1,15 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                                SELECT status as \"status: SubscriptionStatus\", current_period_end\n                                FROM subscriptions\n                                WHERE telegram_user_id = $1\n                                ",
+  "query": "\n        SELECT current_period_end, status as \"status: SubscriptionStatus\"\n        FROM subscriptions\n        WHERE telegram_user_id = $1\n        ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
+        "name": "current_period_end",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 1,
         "name": "status: SubscriptionStatus",
         "type_info": {
           "Custom": {
@@ -21,11 +26,6 @@
             }
           }
         }
-      },
-      {
-        "ordinal": 1,
-        "name": "current_period_end",
-        "type_info": "Timestamp"
       }
     ],
     "parameters": {
@@ -38,5 +38,5 @@
       false
     ]
   },
-  "hash": "a7e686bff11f6b90d3d78f13301404756f1d590aaa160e3c0847d4059f75b8ba"
+  "hash": "ff1bc73fb46b7b46f119c2c2f913b55ac3af6a483af802f5129151f55aadf7bd"
 }
