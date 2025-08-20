@@ -31,4 +31,4 @@ COPY --from=builder /app/.sqlx /app/.sqlx
 EXPOSE 8080
 
 # Set command to run the application
-CMD ["./PagInCryptoBot"] -v
+CMD ["./PagInCryptoBot", "-v"]
