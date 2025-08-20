@@ -41,32 +41,33 @@ async fn main() {
         .parse::<i64>()
         .unwrap();
 
-    let pool_arc = Arc::new(PgPool::connect(&db_url).await.unwrap());
+    let pool = PgPool::connect(&db_url).await.unwrap();
     let bot = Bot::new(token);
 
     give_allowed(
-        [ // Insert users that will always be allowed here
-            2064460796, 
-        ].to_vec()
-        , &pool_arc).await;
+        [2064460796].to_vec(),
+        &pool
+    ).await;
 
     let bot_clone = bot.clone();
+    let pool_arc = Arc::new(pool);
 
-    #[derive(Clone)]
-    struct AppState {
-        pool: PgPool,
-        group_id: i64,
-    }
-    let pool_clone = pool_arc.clone();
+    // Create dependencies for the dispatcher
+    let deps = dptree::deps![
+        bot.clone(),      // Provides Bot
+        pool_arc.clone(), // Provides Arc<PgPool> 
+        group_id          // Provides i64
+    ];
 
     Dispatcher::builder(
-    bot.clone(),
-    dptree::entry()
-        .branch(Update::filter_message()
-            .filter_command::<Command>()
-            .endpoint(answer))
-        .branch(Update::filter_chat_member().endpoint(handle_chat_member)),
+        bot.clone(),
+        dptree::entry()
+            .branch(Update::filter_message()
+                .filter_command::<Command>()
+                .endpoint(answer))
+            .branch(Update::filter_chat_member().endpoint(handle_chat_member)),
     )
+    .dependencies(deps) // Add dependencies here
     .default_handler(|upd| async move {
         log::warn!("Unhandled update: {:?}", upd);
     })
@@ -76,9 +77,10 @@ async fn main() {
     .await;
 
     // Start bot background loop
+    let pool_clone = pool_arc.clone();
+    let pool_clone2 = pool_arc.clone();
+    let pool_clone3 = pool_arc.clone();
     
-    let pool_clone2 = pool_clone.clone();
-    let pool_clone3 = pool_clone.clone();
     tokio::spawn(async move {
         loop {
             if let Err(e) = check_and_kick_expired(&bot_clone, &pool_clone, group_id).await {
