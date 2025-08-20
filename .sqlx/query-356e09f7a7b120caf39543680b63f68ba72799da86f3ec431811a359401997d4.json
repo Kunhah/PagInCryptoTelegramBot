@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                                    INSERT INTO subscriptions (telegram_user_id, id, status, current_period_end, updated_at)\n                                    VALUES ($1, $2, 'active', $3, NOW())\n                                    ON CONFLICT (telegram_user_id)\n                                    DO UPDATE\n                                    SET id = $2,\n                                        status = 'subscribed',\n                                        current_period_end = $3,\n                                        updated_at = NOW();\n                                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "356e09f7a7b120caf39543680b63f68ba72799da86f3ec431811a359401997d4"
+}

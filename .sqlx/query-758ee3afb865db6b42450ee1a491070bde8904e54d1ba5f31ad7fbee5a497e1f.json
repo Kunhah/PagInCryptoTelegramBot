@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                                UPDATE subscriptions\n                                SET status = 'expired'\n                                WHERE telegram_user_id = $1\n                                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "758ee3afb865db6b42450ee1a491070bde8904e54d1ba5f31ad7fbee5a497e1f"
+}

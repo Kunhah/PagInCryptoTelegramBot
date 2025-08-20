@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                                UPDATE subscriptions\n                                SET status = 'canceled'\n                                WHERE telegram_user_id = $1\n                                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "36163992c84f5b3d3cbfd39ac6f37748ef64d5490091995ed6148cc0086f3743"
+}
