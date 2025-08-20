@@ -7,6 +7,10 @@ WORKDIR /app
 # Install system dependencies (PostgreSQL client lib for sqlx)
 RUN apt-get update && apt-get install -y libpq-dev pkg-config
 
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+RUN update-ca-certificates
+
 # Copy Cargo.toml and Cargo.lock to /app
 COPY Cargo.toml Cargo.lock ./
 
