@@ -19,7 +19,7 @@ COPY .sqlx ./.sqlx
 RUN cargo build --release -v
 
 # Stage 2: Runtime
-FROM debian:bullseye-slim
+FROM ubuntu:22.04
 
 # Set working directory to /app
 WORKDIR /app
