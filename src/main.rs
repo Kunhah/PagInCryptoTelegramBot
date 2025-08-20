@@ -121,6 +121,8 @@ pub enum Command {
     Entrar,
     #[command(description = "Display this text.")]
     Help,
+    #[command(description = "Start command.")]
+    Start,
 }
 
 pub async fn answer(bot: &Bot, msg: Message, command: Command, group_id: i64, pool: &PgPool) -> ResponseResult<()> {
@@ -182,6 +184,10 @@ pub async fn answer(bot: &Bot, msg: Message, command: Command, group_id: i64, po
                 bot.send_message(msg.chat.id, format!("Seja bem vindo! Aqui está o acesso ao grupo:\n{}", invite.invite_link))
                             .await?;
             }
+        }
+        Command::Start => {
+            bot.send_message(msg.chat.id, "Bem vindo ao PagInCryptoBot! Use /help para ver os comandos disponíveis.")
+                .await?;
         }
     }
     Ok(())
