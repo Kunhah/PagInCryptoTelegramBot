@@ -127,7 +127,7 @@ pub enum Command {
     Start,
 }
 
-pub async fn answer(bot: &Bot, msg: Message, command: Command, group_id: i64, pool: &PgPool) -> ResponseResult<()> {
+pub async fn answer(bot: &Bot, msg: Message, command: Command, group_id: i64, pool: Arc<PgPool>) -> ResponseResult<()> {
     match command {
         Command::Comprar => {
             let telegram_user_id = msg.from.map(|u| u.id.0 as i64).unwrap_or(0);
@@ -177,7 +177,7 @@ pub async fn answer(bot: &Bot, msg: Message, command: Command, group_id: i64, po
         Command::Entrar => {
             let telegram_user_id = msg.from.map(|u| u.id.0 as i64).unwrap_or(0);
 
-            if handle_enter_request(pool, bot, group_id, telegram_user_id).await {
+            if handle_enter_request(&*pool, bot, group_id, telegram_user_id).await {
 
                 let invite = bot.create_chat_invite_link(ChatId(group_id))
                     .member_limit(1)
@@ -634,7 +634,7 @@ async fn give_allowed(telegram_user_id: Vec<i64>, pool: &PgPool) {
 
 async fn handle_chat_member(
     bot: Bot,
-    pool: PgPool,
+    pool: Arc<PgPool>,
     update: ChatMemberUpdated,
 ) -> ResponseResult<()> {
     let user_id = update.new_chat_member.user.id.0 as i64;
@@ -648,7 +648,7 @@ async fn handle_chat_member(
         "#,
         user_id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&*pool)
     .await
     .unwrap_or_default()
     {
