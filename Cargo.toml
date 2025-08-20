@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-teloxide = { version = "0.17.0", features = ["macros"] }
+teloxide = { version = "0.17.0", features = ["macros", "rustls"] }
 tokio = { version = "1.47.1", features = ["full"] }
 chrono = { version = "0.4", features = ["serde"] }
 sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-rustls", "macros", "chrono"] }
