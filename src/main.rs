@@ -175,16 +175,21 @@ pub async fn answer(bot: Bot, msg: Message, command: Command, group_id: i64, poo
             }
         }
         Command::Entrar => {
-            let telegram_user_id = msg.from.map(|u| u.id.0 as i64).unwrap_or(0);
+            let telegram_user_id = msg.from.map(|u| u.id.0 as u64).unwrap_or(0);
 
-            if handle_enter_request(&*pool, &bot, group_id, telegram_user_id).await {
+            if handle_enter_request(&*pool, &bot, group_id, telegram_user_id as i64).await {
 
                 let invite = bot.create_chat_invite_link(ChatId(group_id))
                     .member_limit(1)
                     .await?;
+
+                bot.unban_chat_member(ChatId(group_id), UserId(telegram_user_id)).await?;
     
                 bot.send_message(msg.chat.id, format!("Seja bem vindo! Aqui está o acesso ao grupo:\n{}", invite.invite_link))
                             .await?;
+            }
+            else {
+                bot.send_message(msg.chat.id, "❌ Erro ao criar convite: Você não está inscrito.").await?;
             }
         }
         Command::Start => {
