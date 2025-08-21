@@ -103,10 +103,10 @@ async fn main() {
         .route("/stripe-webhook", post(handle_stripe_webhook))
         .with_state(pool_clone3.as_ref().clone());
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     println!("🚀 Stripe webhook running on http://{}", addr);
 
-    let listener = TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = TcpListener::bind("0.0.0.0:8080").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 

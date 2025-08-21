@@ -23,10 +23,13 @@ COPY .sqlx ./.sqlx
 RUN cargo build --release -v
 
 # Stage 2: Runtime
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Set working directory to /app
 WORKDIR /app
+
+# Install runtime dependencies: CA certs and libpq (for SQLx runtime linking)
+RUN apt-get update && apt-get install -y ca-certificates libpq5 && rm -rf /var/lib/apt/lists/*
 
 # Copy built binary and .sqlx metadata
 COPY --from=builder /app/target/release/PagInCryptoBot /app/
